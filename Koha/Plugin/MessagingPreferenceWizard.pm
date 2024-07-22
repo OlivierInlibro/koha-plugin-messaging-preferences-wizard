@@ -35,14 +35,14 @@ use Data::Dumper;
 use File::Spec;
 use Koha::DateUtils qw ( dt_from_string );
 
-our $VERSION = 1.4;
+our $VERSION = 1.5;
 
 our $metadata = {
     name   => 'Enhanced messaging preferences wizard',
-    author => 'Bouzid Fergani',
+    author => 'Bouzid Fergani, Alexandre Noël',
     description => 'Setup or reset the enhanced messaging preferences to default values',
     date_authored   => '2016-07-13',
-    date_updated    => '2022-10-14',
+    date_updated    => '2024-07-22',
     minimum_version => '22.05.00',
     maximum_version => undef,
     version         => $VERSION,
@@ -60,6 +60,8 @@ sub tool {
     my ( $self, $args ) = @_;
     my $cgi = $self->{'cgi'};
     my $op = $cgi->param('op') || '';
+    my $kohaversion = Koha::version;
+    $kohaversion =~ s/(.*\..*)\.(.*)\.(.*)/$1$2$3/;
     my @sortie = `ps -eo user,bsdstart,command --sort bsdstart`;
     my @lockfile = `ls -s /tmp/.PluginMessaging.lock 2>/dev/null`;
     my @process;
@@ -70,10 +72,14 @@ sub tool {
     my $lock = scalar (@lockfile);
     my $truncate = $cgi->param('trunc');
     my $since = $cgi->param('since');
+    my $category = $cgi->param('category');
+    my $library = $cgi->param('library');
+    my $message_name = $cgi->param('message-name');
+    my $exclude_expired = $cgi->param('exclude-expired');
+    my $no_overwrite = $cgi->param('no-overwrite');
+    
     if ($op eq 'valide'){
-        if (!$since) {
-            $since = '1972-01-01';
-        } else {
+        if ($since) {
             $since = eval { dt_from_string(scalar $since) };
         }
         warn "[Koha::Plugin::MessagingPreferenceWizard::tool][DEBUG] Truncate is ON, DELETE'ing borrower_message_preferences\n"
@@ -86,14 +92,41 @@ sub tool {
             $sth->execute();
         }
 
-        my $sth = $dbh->prepare("SELECT borrowernumber, categorycode FROM borrowers WHERE dateenrolled >= ?");
-        $sth->execute($since);
-        my $preferedLanguage = $cgi->cookie('KohaOpacLanguage') || '';
+        my $sql = 
+q|SELECT DISTINCT bo.borrowernumber, bo.categorycode FROM borrowers bo
+LEFT JOIN borrower_message_preferences mp USING (borrowernumber)
+WHERE 1|;
+        my $script_path = '../misc/maintenance/borrowers-force-messaging-defaults.pl';
+        my $command = "perl $script_path --doit";
+        if ( $since ) {
+            $command .= " --since $since";
+            $sql .= " AND bo.dateenrolled >= ?";
+        }
+        if ( $category ) {
+            $command .= " --category $category";
+            $sql .= " AND bo.categorycode = ?";
+        }
+        if ( $library ) {
+            $command .= " --library $library";
+            $sql .= " AND bo.branchcode = ?";
+        }
+        if ( $exclude_expired ) {
+            $command .= " --exclude-expired";
+            $sql .= " AND bo.dateexpiry >= NOW()";
+        }
+        if ( $no_overwrite ) {
+            $command .= " --no-overwrite";
+            $sql .= " AND mp.borrowernumber IS NULL";
+        }
+        $command .= " --message-name $message_name" if $message_name;
+
+        my $sth = $dbh->prepare($sql);
+        $sth->execute($since || (), $category || (), $library || () );
         my $result = $sth->fetchall_arrayref();
         my $number = scalar @$result;
-        $sth->execute($since);
         my $pid = fork();
         if ( $pid ){
+            my $preferedLanguage = $cgi->cookie('KohaOpacLanguage') || '';
             my $template = undef;
             eval {$template = $self->get_template( { file => "messaging_preference_wizard_$preferedLanguage.tt" } )};
             if(!$template && $preferedLanguage){
@@ -105,6 +138,7 @@ sub tool {
             $template->param( exist => 0);
             $template->param( lock => 0);
             $template->param(decompte => $number);
+            $template->param(version => $kohaversion);
             print $cgi->header(-type => 'text/html',-charset => 'utf-8');
             print $template->output();
             exit 0;
@@ -112,13 +146,9 @@ sub tool {
             close STDOUT;
         }
         open  my $fh,">",File::Spec->catdir("/tmp/",".PluginMessaging.lock");
-        while ( my ($borrowernumber, $categorycode) = $sth->fetchrow ) {
-            C4::Members::Messaging::SetMessagingPreferencesFromDefaults( {
-                borrowernumber => $borrowernumber,
-                categorycode   => $categorycode,
-            } );
-        }
-        #$dbh->commit();
+        warn "[Koha::Plugin::MessagingPreferenceWizard::tool][DEBUG] $command\n";
+        my $output = `$command`;
+        warn "[Koha::Plugin::MessagingPreferenceWizard::tool][DEBUG] $output\n";
         `rm /tmp/.PluginMessaging.lock 2>/dev/null`;
         exit 0;
     }else{
@@ -130,6 +160,8 @@ sub tool {
 sub show_config_pages {
     my ( $self, $nombre, $lock) = @_;
     my $cgi = $self->{'cgi'};
+    my $kohaversion = Koha::version;
+    $kohaversion =~ s/(.*\..*)\.(.*)\.(.*)/$1$2$3/;
     my $preferedLanguage = $cgi->cookie('KohaOpacLanguage') || '';
     my $template = undef;
     eval {$template = $self->get_template( { file => "messaging_preference_wizard_$preferedLanguage.tt" } )};
@@ -143,6 +175,20 @@ sub show_config_pages {
     $template->param( lock => $lock);
     $template->param( number => 0);
     $template->param( decompte => 0);
+    $template->param( version => $kohaversion);
+
+    my $categories = Koha::Patron::Categories->search();
+    $template->param(categories => $categories);
+    warn "kohaversion = $kohaversion\n";
+    if ( $kohaversion >= 23.11 ) {
+        my $libraries = Koha::Libraries->search();
+        my @message_names = Koha::Patron::MessagePreference::Attributes->search()->get_column('message_name');
+        $template->param(
+            libraries => $libraries,
+            message_names => \@message_names,
+        );
+    }
+
     print $cgi->header(-type => 'text/html',-charset => 'utf-8');
     print $template->output();
 }
