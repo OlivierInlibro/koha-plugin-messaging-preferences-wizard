@@ -17,35 +17,109 @@
                        <a href="/cgi-bin/koha/plugins/plugins-home.pl?method=tool">Extensions</a> &rsaquo;
                        Modifier les pr&eacute;f&eacute;rences de messagerie</div>
 <div id="doc3" class="yui-t1">
-<div class="container">
-    <div id="inlibro-header" style="font-size: 14px; color: #696969; width: 450px;">
-        <p style="text-align: left;">Cette extension a été créée par</p>
-        <img width='450px' src='[% PLUGIN_PATH %]/images/inLibro_fr.svg'/>
-        <p style="text-align: right;">Visitez notre <a href="https://inlibro.com/">site web</a> pour d'autres extensions Koha</p>
+    <div class="container">
+        <div id="plugin-infos">
+            <div id="inlibro-header" style="font-size: 14px; color: #696969; width: 450px;">
+                <p style="text-align: left;">Cette extension a été créée par</p>
+                <img width='450px' src='[% PLUGIN_PATH %]/images/inLibro_en.svg'/>
+                <p style="text-align: right;">Visitez notre <a href="https://inlibro.com/">site web</a> pour d'autres extensions Koha</p>
+            </div>
+            <h2>Assistant de configuration des pr&eacute;f&eacute;rences de messagerie</h2>
+            <p>Cette extension permet d'appliquer aux utilisateurs de Koha les préférences de messagerie pour toutes les catégories d'utilisateurs. Préférences de messages pour cette catégorie d'utilisateur, définies dans le module Administration dans la page Catégories utilisateur sous la section Utilisateurs et circulation.</p>
+        </div>
+        <div id="options-container">
+            <div id="options">
+                <h3>Options</h3>
+                <p>Si aucune option n'est sélectionnée, tous les utilisateurs seront affectés.</p>
+                </br>
+                <form method='get' id="formTraitement">
+                    <input type='hidden' id='class' name='class' value='[% CLASS %]'/>
+                    <input type="hidden" name="method" value="tool"/>
+                    <input type='hidden' id='op' name="op" value=''/>
+                    <div class="form-group">
+                        <h4>Date</h4>
+                        <p>
+                            Traiter les utilisateurs créés depuis :
+                            <input type="text" name='since' id="since">
+                        </p>
+                    </div>
+                    <div class="form-group">
+                        <h4>Par catégorie</h4>
+                        <p>
+                            Traiter les utilisateurs de la catégorie :
+                            <select name="category">
+                                <option value="">Toutes les catégories</option>
+                                [% FOREACH category IN categories %]
+                                    <option value="[% category.categorycode %]">[% category.description %] ([% category.categorycode %]) </option>
+                                [% END %]
+                            </select>
+                        </p>
+                    </div>
+                    [% IF version >= 23.11 %]
+                        <div class="form-group">
+                            <h4>Par bibliothèque</h4>
+                            <p>
+                                Traiter les utilisateurs de la bibliothèque :
+                                <select name="library">
+                                    <option value="">Toutes les bibliothèques</option>
+                                    [% FOREACH library IN libraries %]
+                                        <option value="[% library.branchcode %]">[% library.branchname %] ([% library.branchcode %])</option>
+                                    [% END %]
+                                </select>
+                            </p>
+                        </div>
+                        <div class="form-group">
+                            <h4>Par nom de notification</h4>
+                            <p>
+                                Traiter par nom notifications :
+                                <select name="message-name">
+                                    <option value=""></option>
+                                    [% FOREACH message_name IN message_names %]
+                                        <option value="[% message_name %]">[% message_name %]</option>
+                                    [% END %]
+                                </select>
+                            </p>
+                        </div>
+                    [% END %]
+                    <div class="form-group">
+                        <h4>Exclure les utilisateurs expirés</h4>
+                        <p>
+                            <input type="checkbox" name="exclude-expired" id="exclude-expired">
+                            Exclure dans le traitement les utilisateurs dont la date d'expiration est passée.
+                        </p>
+                    </div>
+                    <div class="form-group">
+                        <h4>Ne pas sur-écrire</h4>
+                        <p>
+                            <input type="checkbox" name="no-overwrite" id="no-overwrite">
+                            Ne pas traiter les valeurs existantes d'un utilisateur.
+                        </p>
+                    </div>
+                    </br>
+                    <div class="form-group">
+                        <p class="warn">
+                            Réinitialiser : <input type="checkbox" name="trunc" id="trunc">
+                            <br/>Si choisie, toutes les préférences de messagerie de tous les comptes utilisateurs seront réinitialisés, y compris les valeurs définies dans le module Administration.
+                        </p>
+                    </div>
+                    <p><button id="lunch" class="btn btn-default" onclick="lancerRecherche()">Lancer</button></p>
+                </form>
+            </div>
+            <div id="progress">
+                <div><span id="number">&nbsp;</span></div>
+                <div><span id="progression">&nbsp;</span></div>
+                <br/>
+                <div>
+                    <a id="lien" class="btn btn-default hidden" href="/cgi-bin/koha/plugins/run.pl?class=[% CLASS %]&method=tool">Nouvelle éxecution</a>
+                </div>
+            </div>
+        </div>
     </div>
-    <h2>Assistant de configuration des pr&eacute;f&eacute;rences de messagerie</h2>
-    <p>Cette extension permet d'appliquer aux utilisateurs de Koha les préférences de messagerie pour toutes les catégories d'utilisateurs. Préférences de messages pour cette catégorie d'utilisateur, définies dans le module Administration dans la page Catégories utilisateur sous la section Utilisateurs et circulation.</p>
-    <br/><h4>Deux options s'offrent à vous.</h4>
-    <form method='get'>
-        <input type='hidden' id='class' name='class' value='[% CLASS %]'/>
-        <input type="hidden" name="method" value="tool"/>
-        <input type='hidden' id='op' name="op" value=''/>
-        <div class="form-group">
-  <p>Traiter seulement les utilisateurs créés depuis: <input type="text" name='since' id="since"><br/>Si une date est fournie, seuls les utilisateurs crées après cette date seront touchés.</p>
-        </div>
-        <div class="form-group">
-            <p class="warn">Réinitialiser: <input type="checkbox" name="trunc" id="trunc"> <br/>Si choisie, toutes les préférences de messagerie de tous les comptes utilisateurs seront réinitialisés, y compris les valeurs définies dans le module Administration.</p>
-        </div>
-        <p><button id="lunch" class="btn btn-default" onclick="lancerRecherche()">Lancer</button></p>
-        <div><span id="number">&nbsp;</span></div>
-        <div><span id="progression">&nbsp;</span></div>
-    </form>
-</div>
 </div>
 [% INCLUDE 'intranet-bottom.inc' %]
 <style>
  .container {
-     max-width: 500px;
+     max-width: 1000px;
  }
  .finish {
       color : green;
@@ -67,39 +141,58 @@
       font-weight: bold;
       color: red;
   }
+  #options {
+      border: 1px solid #696969;
+      border-radius: 10px;
+      padding: 1em;
+      width: 60%;
+  }
+  #options-container {
+      display: flex;
+      justify-content: space-between;
+  }
+  #progress {
+      padding: 1em;
+  }
 </style>
- <script type="text/javascript">
- $( function() {
-     $( "#since" ).flatpickr();
-     if ([% exist %] > 1 && [% lock %] > 0){
-         document.getElementById('lunch').disabled = true;
-         info = document.getElementById('progression');
-         info.setAttribute('class','progress');
-         info.firstChild.data = "Cette tâche a été lancée en arrière plan, vos changements s'appliqueront sous peu.";
-     }
-     if([% attente %] == 1 ){
-         document.getElementById('op').value = '';
-         document.getElementById('lunch').disabled = true;
-         info = document.getElementById('progression')
-         decompte = document.getElementById('number');
-         info.setAttribute('class','finish');
-         decompte.setAttribute('class','texte');
-         decompte.firstChild.data = " Nombre d'utilisateurs à traiter: " + [% decompte %];
-         info.firstChild.data = "Cette tâche a été lancée en arrière plan, vos changements s'appliqueront sous peu.";
-     }
- } );
- function lancerRecherche(){
-     if(window.confirm("Voulez vous réellement appliquer cette configuration?")){
-         since = document.getElementById('since').value;
-         truncate = document.getElementById('trunc').checked;
-         document.getElementById('op').value = 'valide';
-         document.getElementById('trunc').value = truncate;
-         info = document.getElementById('progression');
-         info.setAttribute("class","debut");
-         info.firstChild.data = "Progression en cours, veuillez patienter ............";
+<script type="text/javascript">
+$( function() {
+    $( "#since" ).flatpickr();
+    document.getElementById('lunch').disabled = false;
+    if ([% exist %] > 1 && [% lock %] > 0 ){
+        document.getElementById('lunch').disabled = true;
+        $('input').prop('disabled', true);
+        $('select').prop('disabled', true);
+        $('#lien')[0].classList.remove('hidden');
+        info = document.getElementById('progression');
+        info.setAttribute('class','progress');
+        info.firstChild.data = "Cette tâche a été lancée en arrière plan, vos changements s'appliqueront sous peu.";
+    }
+    if([% attente %] == 1 ){
+        document.getElementById('lunch').disabled = true;
+        $('input').prop('disabled', true);
+        $('select').prop('disabled', true);
+        $('#lien')[0].classList.remove('hidden');
+        info = document.getElementById('progression');
+        info.setAttribute('class','finish');
+        decompte = document.getElementById('number');
+        decompte.setAttribute('class','texte');
+        decompte.firstChild.data = " Nombre d'utilisateurs à traiter: " + [% decompte %];
+        info.firstChild.data = "Cette tâche a été lancée en arrière plan, vos changements s'appliqueront sous peu.";
+    }
+} );
+function lancerRecherche(){
+    if(window.confirm("Voulez vous réellement appliquer cette configuration?")){
+        since = document.getElementById('since').value;
+        truncate = document.getElementById('trunc').checked;
+        document.getElementById('op').value = 'valide';
+        document.getElementById('trunc').value = truncate;
+        info = document.getElementById('progression');
+        info.setAttribute("class","debut");
+        info.firstChild.data = "Progression en cours, veuillez patienter ............";
 
-     }else{
-         document.getElementById('op').value = 'no';
-     }
- }
+    }else{
+        document.getElementById('op').value = 'no';
+    }
+}
 </script>
