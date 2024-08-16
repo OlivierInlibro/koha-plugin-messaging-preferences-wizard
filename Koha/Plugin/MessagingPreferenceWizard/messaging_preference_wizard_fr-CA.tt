@@ -89,7 +89,7 @@
                         </p>
                     </div>
                     <div class="form-group">
-                        <h4>Ne pas sur-écrire</h4>
+                        <h4>Ne pas écraser</h4>
                         <p>
                             <input type="checkbox" name="no-overwrite" id="no-overwrite">
                             Ne pas traiter les valeurs existantes d'un utilisateur.
